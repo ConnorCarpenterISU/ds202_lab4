@@ -1,0 +1,93 @@
+---
+title: 'DS 202: Lab 4'
+author: "Connor Carpenter"
+date: "3/10/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyverse)
+defense <- read_excel('cyclonesFootball2019.xlsx', sheet='Defensive')
+offense <- read_excel('cyclonesFootball2019.xlsx', sheet='Offensive')
+bio <- read_excel('cyclonesFootball2019.xlsx', sheet='Biography')
+```
+
+```{r}
+defense$Name <- as.factor(defense$Name)
+defense$Opponent_Opponent <- as.factor(defense$Opponent_Opponent)
+
+offense$Name <- as.factor(offense$Name)
+offense$Opponent_Opponent <- as.factor(offense$Opponent_Opponent)
+
+defClean <- defense %>% mutate_if(is.character, as.numeric)
+offClean <- offense %>% mutate_if(is.character, as.numeric)
+bioClean <- bio %>% mutate_at(c("Weight"), as.numeric) %>% mutate_at(c("Name"), as.factor)
+
+bioClean <- bioClean %>% separate(Height, into = c("Feet","Inches")) %>% mutate_at(c("Feet","Inches"), as.numeric) %>% mutate(Height = Feet * 12 + Inches) %>% select(-"Feet", -"Inches")
+```
+
+```{r}
+str(defClean)
+str(offClean)
+str(bioClean)
+```
+# 1.)
+```{r}
+defClean <- defClean %>% pivot_longer(Tackles_Solo:Pass_PB, names_to = 'Statistic', values_to = 'Number')
+```
+# 2.)
+```{r}
+ggplot(defClean, aes(x = Number)) + geom_histogram() + facet_wrap(~Statistic)
+```
+
+Rare defensive skills include: Pass_PB, Pass_QBH, Tackles_Sack, and especially all turnovers = (Turnover_FF, Turnover_FR, Turnover_INT)
+
+# 3.)
+```{r}
+compareDef <- defClean %>% filter(Opponent_Opponent %in% c("Kansas State", "West Virginia"), Statistic == 'Tackles_Solo') %>% pivot_wider(names_from = 'Opponent_Opponent', values_from = Number) %>% rename(KS = "Kansas State", WV = "West Virginia")
+
+ggplot(compareDef, aes(x = WV, y = KS)) + geom_point() + geom_abline(intercept = 0, slope = 1) + geom_jitter()
+
+```
+
+```{r}
+bioClean <- bioClean %>% separate(Hometown, into = c("City", "State"), sep = ',')
+
+bioClean %>% select(City, State) %>% head(3)
+```
+
+```{r}
+bioClean %>% group_by(State) %>% summarize(n = n()) %>% arrange(desc(n))
+```
+
+```{r}
+offBio <- bioClean %>% inner_join(offClean, by = c("Name", "Name"))
+```
+
+```{r}
+ggplot(offBio, aes(x = Weight, y = Receiving_YDS)) + geom_point() + geom_smooth()
+```
+
+No clear correlation
+
+```{r}
+Purdy <- offBio %>% group_by(Name) %>% summarize_if(is.numeric, mean) %>% pivot_longer(Rushing_ATT:Passing_INT, names_to = "Stat", values_to = "Number") %>% filter()
+```
+
+```{r}
+ggplot(Purdy, aes(x = Number)) + geom_histogram() + facet_wrap(~Stat, scales = "free_x") + geom_vline(data = Purdy %>% filter(Name == "Purdy, Brock"), aes(xintercept = Number))
+```
+
+```{r}
+offDefBio <- offBio %>% full_join(defense)
+
+offDefBio %>% filter(Tackles_Solo > 0 & Rushing_YDS + Receiving_YDS > 0) %>% group_by(Name) %>% summarize(n = n())
+```
+
+These are the players who had at least one tackle and receiving/rushing yard in a game along with number of games this occured. This means that they had both offensive and defensive output.
